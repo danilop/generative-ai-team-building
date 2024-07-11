@@ -1,0 +1,8 @@
+Write a web app to store all the info about my books, including whether they have been lent to someone.
+Start by collecting requirements and user stories.
+Use Python Flask in the backend, React and Typescript in the frontend. Use PostgreSQL for the database.
+Use AWS for deployment, with Amazon ECS for the backend and Amazon Aurora for the database.
+Manage the infrastructure as code with AWS CDK.
+Provide a complete solution including code and deployment instructions.
+Make sure to include input validation, error handling, and logging.
+Use an organized structure for files so that each group is in a different folder. Use different file names when possible.

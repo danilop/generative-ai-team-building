@@ -1,0 +1,7 @@
+Write a long tutorial explaining how to use Amazon ECS as a software developer.
+Start from the basics of how OS containers and Docker work.
+Include code samples about a single demo app.
+The app uses Python Flask in the backend, React and Typescript in the frontend. Use PostgreSQL for the database.
+For the app, make sure to include input validation, error handling, and logging.
+Use an organized structure for files so that each group is in a different folder. Use different file names when possible.
+Make the turorial avaiable as a blog post series (multiple articles) and as a video series (multiple episodes).

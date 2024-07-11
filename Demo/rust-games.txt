@@ -1,0 +1,4 @@
+Write a series of articles about how to build simple games with the Rust programming language.
+Start by introducing Rust and how it works.
+Then move to more and more advanced examples of games.
+In case you need graphics, who the text-to-image prompt to generate those images, and the required size.

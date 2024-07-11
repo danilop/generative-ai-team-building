@@ -1,0 +1,1 @@
+Invent a game that is a 50% mix of checkers and reversi.
