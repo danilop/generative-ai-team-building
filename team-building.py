@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
-import argparse, base64, io, json, random, os, re
+import argparse, base64, io, json, random, os, re, string
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import redirect_stdout
@@ -205,11 +205,18 @@ bedrock_runtime = boto3.client(service_name="bedrock-runtime", config=bedrock_cl
 
 goal = {} # Used to track the process towards the goal between the solve_goal() and play_game() functions
 
+def init_goal():
+    for s in ['inputTokens', 'outputTokens', 'totalTokens', 'generatedImages']:
+        goal[s] = 0
 
 class ToolError(Exception):
     """Custom exception class for tool errors."""
     pass
 
+
+def print_usage():
+    rich.print(f"Text model: input {goal['inputTokens']} / output {goal['outputTokens']} / total {goal['totalTokens']} tokens")
+    rich.print(f"Image model: {goal['generatedImages']} images")
 
 def call_bedrock(message_list: List[Dict[str, Any]], tool_list: List[Dict[str, Any]], system_prompt: str) -> Dict[str, Any]:
     """
@@ -239,6 +246,14 @@ def call_bedrock(message_list: List[Dict[str, Any]], tool_list: List[Dict[str, A
             sleep(3)
         else:
             break
+
+    if 'usage' in response:
+        usage = response['usage']
+        for s in ['inputTokens', 'outputTokens', 'totalTokens']:
+            if s in usage:
+                goal[s] += usage[s]
+
+    print_usage()
 
     return response
 
@@ -342,11 +357,6 @@ def run_loop(prompt: str, tool_list: List[Dict[str, Any]], system_prompt: str) -
         response = call_bedrock(message_list, tool_list, system_prompt)
         response_message = response["output"]["message"]
         message_list.append(response_message)
-
-#       if "content" in response_message:
-#           for content in response_message["content"]:
-#               if "text" in content:
-#                   rich.print(f"\nMessage: {content['text']}\n")
 
         loop_count = loop_count + 1
         if loop_count >= MAX_LOOPS:
@@ -544,6 +554,7 @@ def generate_image(goal_name: str, file_path: str, file_name: str, prompt: str) 
         },
         "imageGenerationConfig": {
             "numberOfImages": 1,
+            "quality": "standard",
             "height": 512,
             "width": 512,
         },
@@ -554,6 +565,7 @@ def generate_image(goal_name: str, file_path: str, file_name: str, prompt: str) 
     while retry < MAX_IMAGE_RETRIES:
         try:
             response = bedrock_runtime.invoke_model(modelId=IMAGE_MODEL_ID, body=json.dumps(body))
+            goal['generatedImages'] += 1
         except Exception as e:
             rich.print(e)
             prompt = body['textToImageParams']['text']
@@ -569,6 +581,8 @@ def generate_image(goal_name: str, file_path: str, file_name: str, prompt: str) 
             retry += 1
         else:
             break
+
+    print_usage()
 
     # Decode the response body.
     model_response = json.loads(response["body"].read())
@@ -587,8 +601,40 @@ def pretty_print_json(json_object):
     rich.print_json(json.dumps(json_object))
 
 
-def clean_markdown(md_text):
-    return re.sub(r'\n\n\n+', '\n\n', md_text)
+def clean_markdown(markdown_text):
+    return re.sub(r'\n\n\n+', '\n\n', markdown_text).strip(' \n\t')
+
+
+def generate_toc(markdown_text):
+    # Remove code blocks between triple backticks
+    code_block_pattern = r'```.*?```'
+    markdown_text_without_code_blocks = re.sub(code_block_pattern, '', markdown_text, flags=re.DOTALL)
+
+    toc = []
+    lines = markdown_text_without_code_blocks.split('\n')
+    allowed_chars = string.ascii_letters + string.digits + '-'
+
+    for line in lines:
+        match = re.match(r'^(#{1,3})\s+(.+)$', line)
+        if match:
+            level = len(match.group(1))
+            title = match.group(2)
+            link = ''.join(char for char in title.lower().replace(' ', '-') if char in allowed_chars)
+
+            if level <= 3:
+                indent = '  ' * (level - 1)
+                toc_entry = f"{indent}* [{title}](#{link})"
+                toc.append(toc_entry)
+
+    return '\n'.join(toc)
+
+
+def get_opening():
+    return f"# {goal['name']}\n\n{goal['description']}\n\n# Table of contents\n\n"
+
+
+def add_toc(markdown_text):
+    return get_opening() + generate_toc(markdown_text) + '\n\n' + markdown_text
 
 
 def solve_goal():
@@ -673,7 +719,8 @@ def solve_goal():
 
     # Processing the tasks
     for index, task in enumerate(goal['tasks']):
-        rich.print(f"Task {index + 1} / {len(goal['tasks'])}")
+        num_tasks = len(goal['tasks'])
+        rich.print(f"Task {index + 1} / {num_tasks}")
         expert = next((e for e in goal['team'] if e['name'] == task['assigned_expert']), None)
         expert['message'] = f"{task['task']}"
         pretty_print_json(task)
@@ -703,12 +750,13 @@ def solve_goal():
         del expert['message']
         del task['current']
 
-        rich.print("Writing draft...")
+        rich.print("Writing solution...")
         solution = ''
         for task in goal['tasks']:
             if 'solution' in task:
                 solution += f"{task['solution']}\n\n"
-        solution = clean_markdown(solution)
+        solution = clean_markdown(add_toc(solution))
+
         write_file(goal['name'], "", "solution.md", solution, overwrite=True)
         extract_files(solution, goal['name'])
 
@@ -932,6 +980,7 @@ def get_goal():
 
 def main():
     global goal
+    init_goal()
 
     rich.print("Welcome to Team Building! Your not alone to reach your goal.")
     goal['description'] = get_goal()
