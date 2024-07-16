@@ -206,6 +206,7 @@ bedrock_runtime = boto3.client(service_name="bedrock-runtime", config=bedrock_cl
 goal = {} # Used to track the process towards the goal between the solve_goal() and play_game() functions
 
 def init_goal():
+    global goal
     for s in ['inputTokens', 'outputTokens', 'totalTokens', 'generatedImages']:
         goal[s] = 0
 
@@ -215,6 +216,7 @@ class ToolError(Exception):
 
 
 def print_usage():
+    global goal
     rich.print(f"Text model: input {goal['inputTokens']} / output {goal['outputTokens']} / total {goal['totalTokens']} tokens")
     rich.print(f"Image model: {goal['generatedImages']} images")
 
